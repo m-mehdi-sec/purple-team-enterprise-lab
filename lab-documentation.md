@@ -1,160 +1,118 @@
-# Purple Team Enterprise Lab - Lab Documentation
+# Lab Documentation – Purple Team Enterprise Lab
 
-## Lab Purpose
+## Technical Objective
 
-This lab was built to simulate a practical Purple Team workflow in a segmented enterprise-style environment.
+The objective of this lab was to build and validate a controlled Purple Team workflow in a segmented Hyper-V environment.
 
-The purpose was to test how a Windows Server placed in a DMZ could be:
+The focus was to test a complete chain from network setup to attack simulation, detection review, hardening and validation.
+
+The main technical question was:
 
 ```text
-Discovered -> Scanned -> Accessed -> Monitored -> Hardened -> Validated
+Can an exposed Windows Server in a DMZ be accessed from an ATTACK zone, detected by Wazuh, hardened, and then validated again?
 ```
 
-The lab included both offensive and defensive activities.
+The lab focused on:
 
-Kali Linux was used as the attack machine. Windows Server Target DMZ was used as the target. Wazuh and Sysmon were used to monitor endpoint and authentication activity. OPNsense was used as the firewall and router between the ATTACK zone, DMZ zone and the existing management LAN.
+* Building separate ATTACK and DMZ zones without changing the existing management LAN
+* Routing traffic between lab zones through OPNsense
+* Preparing a Windows Server target with exposed services
+* Installing and validating Wazuh Agent and Sysmon before attack simulation
+* Performing baseline scanning with Nmap and Nessus
+* Testing WinRM access with Evil-WinRM
+* Performing SMB enumeration with valid credentials
+* Generating failed authentication events
+* Reviewing detections in Wazuh
+* Removing the weak account and restricting the attack path
+* Validating that the previous access path no longer worked
 
-The goal was not only to perform attack simulation, but also to verify if the activity was visible in Wazuh and then apply hardening based on the findings.
-
-All testing was performed only inside an isolated local Hyper-V lab environment.
+All testing was performed only inside my own isolated local Hyper-V lab.
 
 ---
 
-## Lab Scope
+## Lab Scenario
 
-Only systems inside the local Hyper-V lab were included in scope.
+The lab simulated a small enterprise-style environment with a monitored DMZ target and a separate attacker network.
 
-Primary target:
+The Windows Server target was placed in the DMZ to represent an exposed internal server. Kali Linux was placed in a dedicated ATTACK zone to represent an internal testing or adversary simulation system.
 
-```text
-Hostname: WIN-TARGET-DMZ
-IP address: 10.70.70.40
-Network: DMZ
-Operating system: Windows Server 2025 Standard Evaluation
-```
-
-Attack machine:
-
-```text
-System: Kali Linux
-IP address: 10.60.60.50
-Network: ATTACK
-```
-
-Monitoring system:
-
-```text
-Wazuh Server: 192.168.10.30
-Wazuh Agent: WIN-TARGET-DMZ
-```
-
-The following activities were in scope:
-
-* Network reachability testing
-* Port scanning
-* Vulnerability scanning
-* WinRM remote access testing
-* SMB enumeration
-* Failed authentication testing
-* Brute-force style detection review
-* Wazuh alert review
-* Sysmon verification
-* Hardening and validation
-
-The following activities were not performed:
-
-* Malware execution
-* Persistence
-* Backdoors
-* Data exfiltration
-* Destructive actions
-* Testing against external or unauthorized systems
-
----
-
-## Lab Environment
-
-| System / Tool             | Purpose                            |
-| ------------------------- | ---------------------------------- |
-| Hyper-V                   | Virtual lab platform               |
-| OPNsense                  | Firewall, routing and segmentation |
-| Kali Linux                | Attack machine                     |
-| Windows Server Target DMZ | Target server in the DMZ           |
-| Wazuh Server              | SIEM and security monitoring       |
-| Wazuh Agent               | Endpoint log forwarding            |
-| Sysmon                    | Windows endpoint telemetry         |
-| Nessus Essentials         | Vulnerability scanning             |
-| Nmap                      | Port and service discovery         |
-| Evil-WinRM                | WinRM remote access testing        |
-| smbclient                 | SMB enumeration                    |
-
----
-
-## Network Design
-
-The lab used OPNsense as the central router and firewall between three main areas:
-
-| Segment        | Network           | Gateway        | Purpose                        |
-| -------------- | ----------------- | -------------- | ------------------------------ |
-| Management LAN | `192.168.10.0/24` | `192.168.10.1` | Wazuh, Nessus and admin access |
-| ATTACK Zone    | `10.60.60.0/24`   | `10.60.60.1`   | Kali Linux                     |
-| DMZ Zone       | `10.70.70.0/24`   | `10.70.70.1`   | Windows Server target          |
-
-Key IP addresses:
-
-| System                    | IP Address      |
-| ------------------------- | --------------- |
-| Kali Linux                | `10.60.60.50`   |
-| OPNsense ATTACK gateway   | `10.60.60.1`    |
-| Windows Server Target DMZ | `10.70.70.40`   |
-| OPNsense DMZ gateway      | `10.70.70.1`    |
-| Wazuh Server              | `192.168.10.30` |
-
-Final OPNsense interface mapping:
-
-| OPNsense Interface | Device | IP Address                    |
-| ------------------ | ------ | ----------------------------- |
-| WAN                | `hn0`  | Existing WAN / Default Switch |
-| LAN                | `hn1`  | `192.168.10.1/24`             |
-| DMZ                | `hn2`  | `10.70.70.1/24`               |
-| ATTACK             | `hn3`  | `10.60.60.1/24`               |
-
-The existing WAN and LAN were left unchanged. Only the ATTACK and DMZ networks were added for this lab.
-
----
-
-## Design Decision
-
-The existing working lab environment was not rebuilt or replaced.
-
-The existing LAN continued to be used for management and monitoring. This included Wazuh, Nessus and administrative access. The new ATTACK and DMZ zones were added separately.
-
-This was done to reduce the risk of breaking the existing OPNsense GUI access, internet access or Wazuh access.
-
-The final design allowed the following flow:
+The test path was:
 
 ```text
 Kali Linux
 10.60.60.50
 ATTACK Zone
         |
-        v
-OPNsense
-Firewall / Router
+        | routed through OPNsense
         |
-        v
-DMZ Zone
 Windows Server Target DMZ
 10.70.70.40
+DMZ Zone
+```
+
+The target was monitored by Wazuh Agent and Sysmon before the attack phase started. This was important because the goal was not only to perform attack simulation, but also to verify that security events were visible afterwards.
+
+---
+
+## Approved Systems
+
+Only the following lab systems were used.
+
+| System                    | Role                                        | IP Address                                 |
+| ------------------------- | ------------------------------------------- | ------------------------------------------ |
+| OPNsense                  | Firewall and router                         | `192.168.10.1`, `10.60.60.1`, `10.70.70.1` |
+| Kali Linux                | Attack machine                              | `10.60.60.50`                              |
+| Windows Server Target DMZ | Target server                               | `10.70.70.40`                              |
+| Wazuh Server              | SIEM and monitoring server                  | `192.168.10.30`                            |
+| Windows 11 / Nessus       | Vulnerability scanning and dashboard access | Management LAN                             |
+
+The existing management LAN was left unchanged. Only two new internal Hyper-V switches were added for this lab:
+
+```text
+ATTACK_Switch
+DMZ_Switch
+```
+
+The existing WAN and LAN setup was not rebuilt, because it was already working and used for management, Wazuh and Nessus access.
+
+---
+
+## OPNsense Interface Configuration
+
+The OPNsense VM was extended with two additional network adapters.
+
+Final interface mapping:
+
+| Interface | Device | Network                       | IP Address        |
+| --------- | ------ | ----------------------------- | ----------------- |
+| WAN       | `hn0`  | Existing WAN / Default Switch | DHCP              |
+| LAN       | `hn1`  | Management LAN                | `192.168.10.1/24` |
+| DMZ       | `hn2`  | DMZ Zone                      | `10.70.70.1/24`   |
+| ATTACK    | `hn3`  | ATTACK Zone                   | `10.60.60.1/24`   |
+
+The final goal was:
+
+```text
+Kali Linux -> ATTACK gateway -> OPNsense -> DMZ gateway -> Windows Server Target
+```
+
+The DMZ gateway was:
+
+```text
+10.70.70.1
+```
+
+The ATTACK gateway was:
+
+```text
+10.60.60.1
 ```
 
 ---
 
-## Network Troubleshooting
+## OPNsense Interface Troubleshooting
 
-Several important network issues appeared during the build. These issues were part of the learning process and were documented because they affected routing, scanning and later attack validation.
-
-### DMZ Target Could Not Reach Gateway
+During the build, the first major issue was incorrect interface mapping.
 
 The Windows Server target was configured with:
 
@@ -165,7 +123,9 @@ Default gateway: 10.70.70.1
 DNS: 10.70.70.1
 ```
 
-Initial test from Windows Server:
+The first gateway test from Windows Server failed.
+
+Command used on `WIN-TARGET-DMZ`:
 
 ```powershell
 ping 10.70.70.1
@@ -175,7 +135,6 @@ Observed result:
 
 ```text
 Reply from 10.70.70.40: Destination host unreachable
-Request timed out
 ```
 
 The ARP table was checked:
@@ -184,28 +143,28 @@ The ARP table was checked:
 arp -a
 ```
 
-The gateway MAC address did not appear. This showed that the Windows Server could not reach the OPNsense DMZ interface at Layer 2.
+The gateway MAC address was not resolved correctly. This indicated that the issue was not normal IP routing, but that the target could not reach the OPNsense DMZ interface at Layer 2.
 
-The network adapter was also checked:
+The Windows network adapter was also checked:
 
 ```powershell
 Get-NetAdapter
 ```
 
-The adapter was up, which meant the Windows side was not the main issue.
+The adapter was up, so the issue was not that the Windows NIC was disabled.
 
-The issue was traced to interface mapping between Hyper-V network adapters and OPNsense interfaces.
+The problem was traced to OPNsense interface mapping. The new Hyper-V adapters had to be matched correctly to the OPNsense interfaces.
 
-The working final mapping became:
+Final corrected mapping:
 
 ```text
 DMZ    = hn2
 ATTACK = hn3
 ```
 
-After correcting the interface assignment and confirming that the DMZ interface had `10.70.70.1/24`, the Windows Server target could reach its gateway.
+After correcting the mapping and assigning `10.70.70.1/24` to the DMZ interface, the gateway became reachable.
 
-Validation:
+Validation from Windows Server:
 
 ```powershell
 ping 10.70.70.1
@@ -214,13 +173,13 @@ ping 192.168.10.30
 
 Observation:
 
-The Windows IP configuration was correct. The problem was caused by OPNsense interface mapping and missing or incorrect interface assignment.
+The Windows Server IP configuration was correct. The real issue was incorrect OPNsense interface assignment.
 
 ---
 
-### Kali Could Not Reach ATTACK Gateway
+## ATTACK Gateway Troubleshooting
 
-Kali was configured with:
+Kali Linux was configured with:
 
 ```text
 IP address: 10.60.60.50/24
@@ -228,7 +187,7 @@ Gateway: 10.60.60.1
 Interface: eth0
 ```
 
-The Kali IP configuration and route were checked:
+The Kali IP configuration and routing table were checked:
 
 ```bash
 ip a
@@ -242,7 +201,9 @@ inet 10.60.60.50/24
 default via 10.60.60.1 dev eth0
 ```
 
-However, Kali could not ping the ATTACK gateway:
+However, Kali could not reach the ATTACK gateway.
+
+Command used on Kali:
 
 ```bash
 ping 10.60.60.1
@@ -266,17 +227,17 @@ Observed result:
 ? (10.60.60.1) at <incomplete> on eth0
 ```
 
-This meant Kali was asking for the MAC address of `10.60.60.1`, but no device answered.
+This showed that Kali was sending ARP requests for `10.60.60.1`, but no device was answering.
 
-The issue was found in OPNsense. The ATTACK interface was up, but its IPv4 address was missing. After setting the ATTACK interface to:
+The problem was found in OPNsense. The ATTACK interface was up, but the IPv4 address was missing.
+
+The ATTACK interface was corrected to:
 
 ```text
 10.60.60.1/24
 ```
 
-Kali could reach the gateway and the DMZ target.
-
-Validation:
+Validation from Kali:
 
 ```bash
 ping 10.60.60.1
@@ -285,23 +246,15 @@ ping 10.70.70.40
 
 Observation:
 
-The Kali IP configuration was correct. The actual problem was that the OPNsense ATTACK interface did not have its IPv4 address configured.
+The Kali IP configuration was already correct. The real issue was that the OPNsense ATTACK interface did not have its IPv4 address configured.
 
 ---
 
 ## Kali Network Configuration
 
-Kali used NetworkManager instead of `/etc/network/interfaces`.
+Kali used NetworkManager, so the configuration was done with `nmcli`.
 
-Editing `/etc/network/interfaces` was not used because this Kali installation handled networking through NetworkManager.
-
-The interface was identified as:
-
-```text
-eth0
-```
-
-The active connection name was checked with:
+The active connection was checked:
 
 ```bash
 sudo nmcli con show
@@ -313,7 +266,7 @@ The connection name was:
 Wired connection 1
 ```
 
-The static IP address was configured with:
+Static IP configuration:
 
 ```bash
 sudo nmcli con mod "Wired connection 1" ipv4.addresses 10.60.60.50/24
@@ -349,11 +302,11 @@ Using `nmcli` was the correct method for this Kali VM.
 
 ---
 
-## Windows Server Target Configuration
+## Windows Server Target Preparation
 
-The Windows Server target was a cloned Windows Server VM placed in the DMZ.
+The Windows Server target was created by cloning an existing Windows Server VM and placing the clone in the DMZ network.
 
-Final target details:
+Final target configuration:
 
 ```text
 Hostname: WIN-TARGET-DMZ
@@ -363,14 +316,14 @@ DNS: 10.70.70.1
 Network: DMZ
 ```
 
-Validation commands:
+Validation commands on Windows Server:
 
 ```powershell
 hostname
 ipconfig
 ```
 
-Expected values:
+Confirmed values:
 
 ```text
 Hostname: WIN-TARGET-DMZ
@@ -378,13 +331,18 @@ IPv4 Address: 10.70.70.40
 Default Gateway: 10.70.70.1
 ```
 
-Observation:
+The target server became the main system for:
 
-The server became the main target for scanning, attack simulation, detection and hardening.
+* Baseline scanning
+* WinRM testing
+* SMB enumeration
+* Wazuh detection review
+* Sysmon verification
+* Hardening validation
 
 ---
 
-## Wazuh Agent Troubleshooting and Registration
+## Wazuh Agent Issue After Cloning
 
 The cloned Windows Server inherited the old Wazuh agent identity from the source VM.
 
@@ -394,23 +352,15 @@ The Wazuh dashboard initially showed the old agent name:
 Dev_Anstalld
 ```
 
-This happened because the cloned VM inherited the existing Wazuh agent ID and registration key.
+This happened because the cloned VM kept the previous Wazuh agent registration and identity.
 
-### Wazuh Service Was Disabled
-
-On the Windows Server target, the Wazuh service was checked:
+The Wazuh service was checked on `WIN-TARGET-DMZ`:
 
 ```powershell
 Get-Service | findstr Wazuh
 ```
 
-The service was stopped.
-
-Attempting to start it failed:
-
-```powershell
-Start-Service WazuhSvc
-```
+The service existed but was not running correctly.
 
 The service configuration was checked:
 
@@ -421,12 +371,10 @@ sc.exe qc WazuhSvc
 Observed result:
 
 ```text
-SERVICE_NAME: WazuhSvc
 START_TYPE: 4 DISABLED
-BINARY_PATH_NAME: "C:\Program Files (x86)\ossec-agent\wazuh-agent.exe"
 ```
 
-The service was set to automatic and started:
+The service startup type was changed and the service was started:
 
 ```powershell
 Set-Service WazuhSvc -StartupType Automatic
@@ -437,72 +385,77 @@ Get-Service WazuhSvc
 Confirmed result:
 
 ```text
-Status   Name       DisplayName
-Running  WazuhSvc   Wazuh
+Running  WazuhSvc  Wazuh
 ```
 
 Observation:
 
-The Wazuh agent service existed, but it was disabled. After changing the startup type to Automatic, the service started correctly.
+The Wazuh agent service was installed but disabled. It had to be enabled before registration could be completed properly.
 
 ---
 
-### Wazuh Server Connectivity
+## Wazuh Manager IP Correction
 
-The Windows Server target needed to reach the Wazuh Server.
-
-The Wazuh Server IP was checked from Ubuntu:
-
-```bash
-ip a
-hostname -I
-```
-
-Confirmed Wazuh Server IP:
+The Wazuh Server IP was:
 
 ```text
 192.168.10.30
 ```
 
-Connectivity from Windows Server Target DMZ was tested:
+The cloned agent still pointed to the old manager IP, so the agent configuration was corrected on the Windows Server target.
+
+File checked on `WIN-TARGET-DMZ`:
 
 ```powershell
-ping 192.168.10.30
+notepad "C:\Program Files (x86)\ossec-agent\ossec.conf"
 ```
 
-Confirmed result:
+The manager address was corrected to:
 
-```text
-Reply from 192.168.10.30
+```xml
+<server>
+  <address>192.168.10.30</address>
+</server>
+```
+
+The Wazuh service was restarted:
+
+```powershell
+Restart-Service WazuhSvc
+Get-Service WazuhSvc
 ```
 
 Observation:
 
-The Windows Server Target DMZ could reach the Wazuh Server through OPNsense routing.
+Correcting the Wazuh manager IP was required so the target could communicate with the current Wazuh Server.
 
 ---
 
-### Removing the Old Agent Identity
+## Wazuh Agent Re-registration
 
-On the Wazuh Server, the agent manager was opened:
+The old cloned agent identity was removed from the Wazuh Server.
+
+Command used on the Wazuh Server:
 
 ```bash
 sudo /var/ossec/bin/manage_agents
 ```
 
-The existing agents were listed:
+Existing agents were listed:
 
 ```text
 L
 ```
 
-Observed result:
+Observed old agent:
 
 ```text
-ID: 001, Name: Dev_Anstalld, IP: any
+ID: 001
+Name: Dev_Anstalld
+IP: any
 ```
 
-The old cloned agent was removed:
+The old agent was removed:
 
 ```text
 R
@@ -522,44 +475,32 @@ The new agent received:
 ```text
 ID: 002
 Name: WIN-TARGET-DMZ
-IP: any
 ```
 
-The agent key was extracted:
+The key was extracted:
 
 ```text
 E
 002
 ```
 
-Observation:
+The key was then imported on the Windows Server target.
 
-Removing the old cloned identity and registering a new agent fixed the incorrect Wazuh agent name.
-
----
-
-### Importing the New Agent Key on Windows
-
-On the Windows Server target, the Wazuh service was stopped:
+Commands on `WIN-TARGET-DMZ`:
 
 ```powershell
 Stop-Service WazuhSvc
-```
-
-The Wazuh agent manager was opened:
-
-```powershell
 cd "C:\Program Files (x86)\ossec-agent"
 .\manage_agents.exe
 ```
 
-The new key was imported:
+Inside the agent manager:
 
 ```text
 I
 ```
 
-After importing the key, the service was started again:
+After importing the key:
 
 ```powershell
 Start-Service WazuhSvc
@@ -582,22 +523,21 @@ Status: Active
 
 Observation:
 
-The target server was correctly registered and actively sending events to Wazuh.
+Removing the old cloned agent and registering a new one fixed the identity problem. This was important because all later detection evidence had to be linked to the correct target name.
 
 ---
 
-## Manual Wazuh Event Test
+## Wazuh Event Test
 
-A manual Windows event was created to verify that events were being generated on the target.
+A manual event was created on the Windows Server target to confirm that Windows events could be generated.
 
-On Windows Server Target DMZ:
+Command used on `WIN-TARGET-DMZ`:
 
 ```powershell
-whoami
 eventcreate /T INFORMATION /ID 1000 /L APPLICATION /SO PurpleTeamLab /D "Wazuh test event"
 ```
 
-Confirmed result:
+Observed result:
 
 ```text
 SUCCESS: An event of type 'INFORMATION' was created in the 'APPLICATION' log with 'PurpleTeamLab' as the source.
@@ -605,17 +545,17 @@ SUCCESS: An event of type 'INFORMATION' was created in the 'APPLICATION' log wit
 
 Observation:
 
-This confirmed that Windows events could be generated on the target before the attack phase.
+This confirmed that the target could generate Windows events before the attack phase started.
 
 ---
 
-## Sysmon Installation and Verification
+## Sysmon Installation
 
-Sysmon was installed before baseline scanning and before the main attack phase.
+Sysmon was installed before the attack simulation so endpoint telemetry would already be available.
 
 Sysmon was downloaded from Microsoft Sysinternals and extracted on the target server.
 
-The Sysmon executable was verified:
+Commands used on `WIN-TARGET-DMZ`:
 
 ```powershell
 cd "$env:USERPROFILE\Downloads\SysinternalsSuite"
@@ -637,8 +577,7 @@ Get-Service Sysmon64
 Confirmed result:
 
 ```text
-Status   Name       DisplayName
-Running  Sysmon64   Sysmon64
+Running  Sysmon64  Sysmon64
 ```
 
 Sysmon events were checked locally:
@@ -657,17 +596,15 @@ Event ID 16 - Sysmon config state changed
 
 Observation:
 
-Sysmon was installed and generating endpoint telemetry before attack simulation.
+Sysmon was installed and generating endpoint telemetry before the attack simulation.
 
 ---
 
-## Windows Server Attack Surface Preparation
+## IIS Preparation
 
-The target server was prepared with exposed services for controlled lab testing.
+IIS was installed on the Windows Server target to expose a basic web service.
 
-### IIS Installation
-
-IIS was installed:
+Command used on `WIN-TARGET-DMZ`:
 
 ```powershell
 Install-WindowsFeature Web-Server -IncludeManagementTools
@@ -698,7 +635,7 @@ Confirmed result:
 [::]:80 LISTENING
 ```
 
-Browser validation was performed from another machine:
+Browser validation:
 
 ```text
 http://10.70.70.40
@@ -710,9 +647,11 @@ IIS was reachable and became part of the DMZ attack surface.
 
 ---
 
-### WinRM Configuration
+## WinRM Preparation
 
-WinRM was enabled:
+WinRM was enabled on the Windows Server target.
+
+Command used on `WIN-TARGET-DMZ`:
 
 ```powershell
 Enable-PSRemoting -Force
@@ -724,7 +663,7 @@ The listener was checked:
 winrm enumerate winrm/config/listener
 ```
 
-Confirmed result:
+Confirmed listener information:
 
 ```text
 Transport = HTTP
@@ -751,9 +690,11 @@ WinRM was running locally and listening on port `5985/tcp`.
 
 ---
 
-### WinRM Firewall and Network Profile Troubleshooting
+## WinRM Filtering Troubleshooting
 
-From Kali, WinRM initially showed as filtered:
+From Kali, WinRM was initially shown as filtered.
+
+Command used on Kali:
 
 ```bash
 nmap -Pn -p 5985 10.70.70.40
@@ -765,19 +706,15 @@ Observed result:
 5985/tcp filtered wsman
 ```
 
-On the Windows Server target, WinRM was running and firewall rules were enabled:
+On the Windows Server target, WinRM firewall rules were checked:
 
 ```powershell
 Get-NetFirewallRule -DisplayGroup "Windows Remote Management" | Select DisplayName, Enabled
 ```
 
-Confirmed result:
+The WinRM firewall rule was enabled.
 
-```text
-Windows Remote Management (HTTP-In) True
-```
-
-The Windows network profile was checked:
+The network profile was then checked:
 
 ```powershell
 Get-NetConnectionProfile
@@ -821,13 +758,15 @@ Confirmed result:
 
 Observation:
 
-The WinRM service was running, but the Windows network profile caused filtering. Changing the network category to Private allowed WinRM to become reachable from Kali.
+WinRM was listening locally, but the Windows network profile affected remote reachability. Changing the profile from Public to Private allowed WinRM to become reachable from Kali.
 
 ---
 
-### RDP Enablement
+## RDP Preparation
 
-RDP was checked:
+RDP was enabled as part of the controlled exposed services on the target.
+
+The current RDP setting was checked:
 
 ```powershell
 Get-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name fDenyTSConnections
@@ -854,13 +793,15 @@ netstat -ano | findstr :3389
 
 Observation:
 
-RDP was enabled as part of the controlled attack surface.
+RDP was enabled as part of the controlled DMZ attack surface.
 
 ---
 
-### Weak Local Administrator Account
+## Weak Local Administrator Account
 
-A weak local administrator account was created for controlled attack simulation:
+A weak local administrator account was created for controlled attack simulation.
+
+Commands used on `WIN-TARGET-DMZ`:
 
 ```powershell
 net user purpleadmin Password123! /add
@@ -878,20 +819,19 @@ Confirmed result:
 ```text
 Account active: Yes
 Local Group Memberships: Administrators, Users
-Last logon: Never
 ```
 
 Observation:
 
-The account was intentionally weak and used only in this isolated lab to simulate poor credential management.
+The account was intentionally weak and used only inside this isolated lab to simulate poor credential management.
 
 ---
 
-## Baseline Assessment
+## Baseline Nmap Scan
 
-### Nmap Service Scan
+A service and version scan was performed from Kali against the DMZ target.
 
-From Kali, the baseline service scan was performed:
+Command used on Kali:
 
 ```bash
 nmap -sV 10.70.70.40
@@ -899,23 +839,33 @@ nmap -sV 10.70.70.40
 
 Observed open ports:
 
-|       Port | Service      | Observation    |
-| ---------: | ------------ | -------------- |
-|   `80/tcp` | HTTP         | Microsoft IIS  |
-|  `135/tcp` | MSRPC        | Windows RPC    |
-|  `445/tcp` | SMB          | Microsoft SMB  |
-| `3389/tcp` | RDP          | Remote Desktop |
-| `5985/tcp` | HTTP / WinRM | WinRM service  |
+```text
+80/tcp    open  http
+135/tcp   open  msrpc
+445/tcp   open  microsoft-ds
+3389/tcp  open  ms-wbt-server
+5985/tcp  open  wsman
+```
+
+Result summary:
+
+|       Port | Service    | Meaning                     |
+| ---------: | ---------- | --------------------------- |
+|   `80/tcp` | HTTP / IIS | Web service exposed         |
+|  `135/tcp` | MSRPC      | Windows RPC exposed         |
+|  `445/tcp` | SMB        | File sharing reachable      |
+| `3389/tcp` | RDP        | Remote desktop reachable    |
+| `5985/tcp` | WinRM      | Remote PowerShell reachable |
 
 Observation:
 
-The Nmap scan confirmed the expected attack surface from the ATTACK zone.
+The scan confirmed that the target exposed the expected services from the ATTACK zone.
 
 ---
 
-### Nessus Baseline Scan
+## Nessus Baseline Scan
 
-A Nessus Basic Network Scan was created.
+A Nessus Basic Network Scan was performed against the DMZ target.
 
 Scan settings:
 
@@ -947,47 +897,47 @@ Observed finding categories included:
 
 Observation:
 
-The baseline scan showed exposed services and configuration findings, but no Critical or High findings from a non-credentialed perspective.
+The baseline scan showed externally visible services and configuration findings, but no Critical or High findings from a non-credentialed perspective.
 
 ---
 
-### Credentialed Scan Note
+## Nessus Credentialed Scan Note
 
-A later credentialed Nessus scan was tested with Windows administrator credentials.
+A credentialed Nessus scan was also tested later with Windows administrator credentials.
 
 That scan showed:
 
 ```text
 Auth: Pass
 More findings
-Windows bulletin-related findings
+Additional Windows-related details
 ```
 
 Observation:
 
-The credentialed scan discovered more details because Nessus could log into the target. It was not used as the main after-hardening comparison because the original baseline was non-credentialed. A fair comparison requires the same scan type before and after hardening.
+The credentialed scan discovered more information because Nessus could authenticate to the target. It was not used as the main before-and-after comparison because the original baseline scan was non-credentialed. A fair comparison requires using the same scan type before and after hardening.
 
 ---
 
-## Attack Simulation
+## Evil-WinRM Initial Failure
 
-### Evil-WinRM Initial Failure
+Evil-WinRM was tested from Kali.
 
-Evil-WinRM was first tested from Kali:
+Command used:
 
 ```bash
 evil-winrm -i 10.70.70.40 -u purpleadmin -p 'Password123!'
 ```
 
-Initial error:
+Observed error:
 
 ```text
 WinRM::WinRMAuthorizationError
 ```
 
-WinRM was reachable, but Windows rejected the remote administrative session.
+WinRM was reachable, and the password was correct, but Windows rejected the remote administrative session.
 
-On the Windows Server target, WinRM configuration was checked:
+WinRM configuration was checked on the Windows Server target:
 
 ```powershell
 winrm get winrm/config/service
@@ -997,7 +947,6 @@ winrm quickconfig
 Observed issue:
 
 ```text
-WinRM is not set up to allow remote access to this machine for management.
 Configure LocalAccountTokenFilterPolicy to grant administrative rights remotely to local users.
 ```
 
@@ -1025,15 +974,17 @@ The issue was not the password or the network path. The problem was Windows remo
 
 ---
 
-### Evil-WinRM Successful Access
+## Evil-WinRM Successful Access
 
-Evil-WinRM was tested again:
+Evil-WinRM was tested again from Kali.
+
+Command used:
 
 ```bash
 evil-winrm -i 10.70.70.40 -u purpleadmin -p 'Password123!'
 ```
 
-Inside the WinRM session:
+Commands inside the Evil-WinRM session:
 
 ```powershell
 whoami
@@ -1049,16 +1000,19 @@ WIN-TARGET-DMZ
 
 Observation:
 
-Remote access from Kali in the ATTACK zone to Windows Server in the DMZ was confirmed.
+Remote access from Kali in the ATTACK zone to the Windows Server target in the DMZ was confirmed.
 
 ---
 
-### Basic Post-Access Enumeration
+## Basic Post-Access Validation
 
-Inside the Evil-WinRM session, basic enumeration commands were used:
+Inside the Evil-WinRM session, basic non-destructive validation commands were used.
+
+Commands used:
 
 ```powershell
 hostname
+whoami
 whoami /groups
 ipconfig /all
 net user
@@ -1068,15 +1022,15 @@ systeminfo
 
 Observation:
 
-These commands represented typical early post-access discovery steps. They were non-destructive and used to validate access and generate endpoint activity.
+These commands were used only to validate access and generate normal endpoint activity. No persistence, malware, destructive changes or data exfiltration were performed.
 
 ---
 
-## SMB Enumeration
+## Anonymous SMB Enumeration
 
-### Anonymous SMB Enumeration
+Anonymous SMB enumeration was tested first.
 
-Anonymous SMB enumeration was tested:
+Command used on Kali:
 
 ```bash
 smbclient -L //10.70.70.40 -N
@@ -1090,19 +1044,21 @@ session setup failed: NT_STATUS_ACCESS_DENIED
 
 Observation:
 
-Anonymous SMB access was blocked, which is expected on modern Windows Server systems.
+Anonymous SMB access was denied, which is expected on a modern Windows Server configuration.
 
 ---
 
-### Authenticated SMB Share Enumeration
+## Authenticated SMB Share Enumeration
 
-SMB enumeration was repeated with valid credentials:
+SMB enumeration was repeated with valid credentials.
+
+Command used on Kali:
 
 ```bash
 smbclient -L //10.70.70.40 -U purpleadmin
 ```
 
-Password:
+Password used:
 
 ```text
 Password123!
@@ -1125,25 +1081,27 @@ Unable to connect with SMB1 -- no workgroup available
 
 Observation:
 
-The SMB enumeration was successful with valid credentials. The SMB1 workgroup listing error was not a problem because modern Windows systems commonly disable or avoid SMB1-based browsing.
+The authenticated SMB enumeration worked. The SMB1 workgroup message was not treated as a failure because the share listing still succeeded and modern Windows environments commonly do not rely on SMB1 browsing.
 
 ---
 
-### SMB User Profile Enumeration
+## SMB User Profile Enumeration
 
-The `Users` share was accessed:
+The `Users` share was accessed with valid credentials.
+
+Command used on Kali:
 
 ```bash
 smbclient //10.70.70.40/Users -U purpleadmin
 ```
 
-Password:
+Password used:
 
 ```text
 Password123!
 ```
 
-Inside the SMB session:
+Commands inside the SMB session:
 
 ```text
 cd purpleadmin
@@ -1164,21 +1122,21 @@ Videos
 
 Observation:
 
-The attacker could enumerate the user profile after authenticating with valid credentials. No files were modified or exfiltrated.
+Authenticated SMB access allowed the attacker to enumerate the local user profile structure. No files were modified or exfiltrated.
 
 ---
 
-## Failed Logons and Brute Force Detection
+## Failed Authentication Testing
 
-Several failed authentication attempts were generated to validate Wazuh detection.
+Failed authentication attempts were generated to validate Wazuh detection.
 
-A simple failed WinRM attempt was performed:
+Example failed Evil-WinRM command:
 
 ```bash
 evil-winrm -i 10.70.70.40 -u purpleadmin -p 'WrongPassword'
 ```
 
-Wazuh detected:
+Observed Wazuh detection:
 
 ```text
 Logon Failure - Unknown user or bad password
@@ -1186,7 +1144,7 @@ Rule ID: 60122
 Level: 5
 ```
 
-The Wazuh event included useful fields:
+Important event fields included:
 
 ```text
 agent.name: WIN-TARGET-DMZ
@@ -1195,30 +1153,33 @@ authentication package: NTLM
 logon type: 3
 ```
 
-Multiple failures later produced:
+Observation:
 
-```text
-Multiple Windows Logon Failures
-User account locked out
-```
+Failed remote authentication attempts from Kali were visible in Wazuh.
 
-Observed Wazuh rules:
+---
 
-| Wazuh Rule | Description                                  | Level |
-| ---------: | -------------------------------------------- | ----: |
-|    `60122` | Logon Failure - Unknown user or bad password |     5 |
-|    `60204` | Multiple Windows Logon Failures              |    10 |
-|    `60115` | User account locked out                      |     9 |
+## Brute-Force Style Detection
+
+Repeated authentication failures were generated to test whether Wazuh could identify stronger authentication patterns.
+
+Observed Wazuh detections included:
+
+| Rule ID | Detection                                    | Level |
+| ------: | -------------------------------------------- | ----: |
+| `60122` | Logon Failure - Unknown user or bad password |     5 |
+| `60204` | Multiple Windows Logon Failures              |    10 |
+| `60115` | User account locked out                      |     9 |
 
 Observation:
 
-This confirmed that Wazuh could detect repeated authentication failures and account lockout activity.
+Wazuh escalated repeated failed authentication activity and detected account lockout behaviour.
 
 ---
 
 ## Hydra Test Note
 
-Hydra was tested during the lab, but the first attempt was not kept as final evidence.
+Hydra was tested during the lab, but the first command was not used as final evidence.
 
 Command used:
 
@@ -1232,11 +1193,11 @@ Observed issue:
 5 valid passwords found
 ```
 
-This result was not valid because the module tested an HTTP GET path and interpreted the web response incorrectly. Wazuh did not generate useful authentication alerts from this specific Hydra attempt.
+This result was not reliable because the command tested an HTTP GET path and interpreted the web response incorrectly. It did not provide useful Windows authentication evidence in Wazuh.
 
 Observation:
 
-The Hydra screenshot was not used in the final documentation because it did not provide reliable evidence. The Wazuh brute-force and account-lockout screenshot was kept instead because it showed real Windows authentication events.
+The Hydra result was excluded from the final evidence. The Wazuh brute-force and account-lockout detection was used instead because it showed real Windows authentication events.
 
 ---
 
@@ -1249,32 +1210,31 @@ Important detections included:
 | Detection                                | Meaning                                        |
 | ---------------------------------------- | ---------------------------------------------- |
 | Successful Remote Logon Detected         | WinRM access using valid credentials           |
-| Special privileges assigned to new logon | Administrator-level session                    |
+| Special privileges assigned to new logon | Administrator-level logon context              |
 | Logon Failure                            | Failed authentication attempt                  |
 | Multiple Windows Logon Failures          | Repeated authentication failures               |
 | User account locked out                  | Account lockout after multiple failed attempts |
-| Windows User Logoff                      | Session ended                                  |
+| Windows User Logoff                      | End of user session                            |
 
-Example successful remote logon rule:
+Example successful remote logon:
 
 ```text
 Successful Remote Logon Detected
 User: purpleadmin
-Rule ID: 92652
-Level: 6
+Agent: WIN-TARGET-DMZ
 ```
 
-Example failed logon rule:
+Example failed logon:
 
 ```text
 Logon Failure - Unknown user or bad password
-Rule ID: 60122
-Level: 5
+User: purpleadmin
+Source IP: 10.60.60.50
 ```
 
 Observation:
 
-Wazuh provided useful visibility into the attack path and authentication activity from the DMZ server.
+Wazuh provided useful visibility into authentication activity on the DMZ target.
 
 ---
 
@@ -1282,7 +1242,7 @@ Wazuh provided useful visibility into the attack path and authentication activit
 
 Sysmon was verified locally on the Windows Server target.
 
-Command:
+Command used:
 
 ```powershell
 Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -MaxEvents 20 | Select TimeCreated,Id,Message
@@ -1291,24 +1251,22 @@ Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -MaxEvents 20 | Sel
 Observed event IDs:
 
 ```text
-Event ID 1 - Process Create
-Event ID 5 - Process Terminated
+Event ID 1  - Process Create
+Event ID 5  - Process Terminated
 Event ID 16 - Sysmon config state changed
 ```
 
-Wazuh also showed some Sysmon-related registry activity, including registry key and value changes.
+Wazuh also showed some Sysmon-related registry activity.
 
 Observation:
 
-Sysmon was active and generating endpoint telemetry. However, not every process event was clearly visible in the main Wazuh Threat Hunting view during the lab. This was documented as an observation rather than overstating the result.
+Sysmon was active and generating endpoint telemetry. However, not every process creation event was clearly visible in the main Wazuh Threat Hunting view during the lab. This was documented as an observation instead of overstating the result.
 
 ---
 
-## Hardening Phase
+## Hardening Action: Remove Weak Account
 
-The hardening phase focused on removing the demonstrated attack path.
-
-### Remove Weak Local Administrator Account
+The hardening phase started by removing the weak local administrator account.
 
 Before removal, the account was checked:
 
@@ -1316,7 +1274,7 @@ Before removal, the account was checked:
 net user purpleadmin
 ```
 
-The account showed:
+Observed state:
 
 ```text
 Account active: Locked
@@ -1343,13 +1301,15 @@ The user name could not be found.
 
 Observation:
 
-The weak local administrator account used during the attack phase was removed.
+The weak local administrator account used during the attack simulation was removed.
 
 ---
 
-### Evil-WinRM Validation After Account Removal
+## Validation: Evil-WinRM After Hardening
 
-The previous Evil-WinRM command was tested again from Kali:
+The same Evil-WinRM command was tested again from Kali.
+
+Command used:
 
 ```bash
 evil-winrm -i 10.70.70.40 -u purpleadmin -p 'Password123!'
@@ -1367,9 +1327,9 @@ The previous WinRM attack path no longer worked with the removed account.
 
 ---
 
-### WinRM Access Restriction
+## Hardening Action: Restrict WinRM Exposure
 
-WinRM was also restricted so that it was no longer openly reachable from the ATTACK zone.
+WinRM access from the ATTACK zone was restricted so that port `5985/tcp` was no longer openly reachable from Kali.
 
 Validation from Kali:
 
@@ -1385,7 +1345,7 @@ Observed result:
 
 Observation:
 
-Port `5985/tcp` was no longer openly reachable from Kali. This reduced the attack surface and validated the hardening action.
+Port `5985/tcp` was no longer openly reachable from the ATTACK zone. This reduced the remote administration attack surface.
 
 ---
 
@@ -1402,7 +1362,7 @@ Policy: Basic Network Scan
 Credentials: None
 ```
 
-Result:
+Observed result:
 
 ```text
 Vulnerabilities: 25
@@ -1416,28 +1376,47 @@ The non-credentialed Nessus result stayed mostly the same because removing `purp
 
 ---
 
-## Key Findings
+## Important Troubleshooting Results
 
-| Finding                           | Result                                                           | Significance                              |
-| --------------------------------- | ---------------------------------------------------------------- | ----------------------------------------- |
-| Segmented network path validated  | Kali reached DMZ target through OPNsense routing                 | Positive architecture result              |
-| ATTACK interface issue identified | Missing IPv4 on OPNsense ATTACK interface caused gateway failure | Important troubleshooting result          |
-| DMZ mapping issue identified      | Interface mapping had to be corrected                            | Important troubleshooting result          |
-| Wazuh cloned-agent issue resolved | Old agent identity removed and new one registered                | Correct monitoring identity               |
-| WinRM initially filtered          | Windows network profile was Public                               | Firewall/profile troubleshooting          |
-| WinRM authorization failed        | LocalAccountTokenFilterPolicy was missing                        | Windows remote admin troubleshooting      |
-| Evil-WinRM access achieved        | Access confirmed as `purpleadmin`                                | Confirmed attack path                     |
-| SMB enumeration successful        | Shares and user profile folders listed                           | Confirmed post-authentication enumeration |
-| Wazuh detection successful        | Successful logons, failed logons and lockout detected            | Confirmed SIEM visibility                 |
-| Sysmon active                     | Process and service events generated locally                     | Confirmed endpoint telemetry              |
-| Weak account removed              | `purpleadmin` removed during hardening                           | Reduced credential risk                   |
-| WinRM filtered after hardening    | Port `5985/tcp` no longer openly reachable                       | Attack path reduced                       |
+| Issue                                     | Cause                                   | Resolution                                        |
+| ----------------------------------------- | --------------------------------------- | ------------------------------------------------- |
+| DMZ target could not reach gateway        | Incorrect OPNsense interface mapping    | Corrected DMZ interface assignment                |
+| Kali could not reach ATTACK gateway       | ATTACK interface had no IPv4 address    | Configured `10.60.60.1/24`                        |
+| Wazuh showed old agent name               | Cloned VM inherited old Wazuh identity  | Removed old agent and registered `WIN-TARGET-DMZ` |
+| Wazuh service would not start             | Service startup type was Disabled       | Changed startup type to Automatic                 |
+| Wazuh agent pointed to old manager        | Old manager IP remained in `ossec.conf` | Corrected manager IP to `192.168.10.30`           |
+| WinRM port was filtered                   | Windows network profile was Public      | Changed profile to Private                        |
+| Evil-WinRM failed with valid password     | LocalAccountTokenFilterPolicy missing   | Added required registry value                     |
+| Hydra result was misleading               | Wrong module/path tested HTTP response  | Excluded from final evidence                      |
+| Sysmon events were not all clear in Wazuh | Dashboard/query limitation              | Verified Sysmon locally                           |
+
+Observation:
+
+These troubleshooting steps became an important part of the lab because they showed realistic problems that can appear when building, attacking and monitoring a segmented environment.
+
+---
+
+## Technical Findings
+
+| Finding                        | Result                                                | Significance                           |
+| ------------------------------ | ----------------------------------------------------- | -------------------------------------- |
+| Segmented ATTACK-to-DMZ path   | Kali reached the target through OPNsense              | Confirmed routed lab design            |
+| Target monitoring active       | Wazuh Agent active before attack                      | Logs were available during testing     |
+| Sysmon installed               | Sysmon generated endpoint telemetry                   | Improved endpoint visibility           |
+| Exposed services identified    | Nmap found IIS, RPC, SMB, RDP and WinRM               | Defined the attack surface             |
+| Nessus baseline completed      | No Critical or High findings in non-credentialed scan | Established baseline                   |
+| WinRM access achieved          | Evil-WinRM worked with weak credentials               | Confirmed remote access risk           |
+| SMB enumeration worked         | Shares and user profile folders were visible          | Confirmed post-authentication exposure |
+| Failed logons detected         | Wazuh detected wrong password attempts                | Confirmed authentication monitoring    |
+| Account lockout detected       | Wazuh showed multiple failures and lockout            | Confirmed stronger detection signal    |
+| Weak account removed           | `purpleadmin` deleted                                 | Reduced credential risk                |
+| WinRM filtered after hardening | Port `5985/tcp` no longer open from Kali              | Reduced attack path                    |
 
 ---
 
 ## Security Impact
 
-The lab showed that a weak local administrator account combined with exposed WinRM created a realistic remote access risk.
+The lab showed that exposed WinRM combined with weak local administrator credentials created a realistic remote access risk.
 
 Before hardening:
 
@@ -1457,133 +1436,86 @@ WinRM port 5985 was filtered from Kali
 The previous attack path was no longer available
 ```
 
-This demonstrated how detection and hardening can be connected in a practical Purple Team workflow.
+The most important result was that the same attack path that worked before hardening no longer worked afterwards.
 
 ---
 
-## What Worked Well
+## Defensive Improvements
 
-The following parts worked successfully:
+The following defensive improvements were applied or validated:
 
-* OPNsense routed traffic between ATTACK and DMZ after interface fixes
-* Kali was successfully placed in the ATTACK zone
-* Windows Server Target DMZ was reachable after DMZ troubleshooting
-* Wazuh agent was correctly registered as `WIN-TARGET-DMZ`
-* Sysmon was installed and generated events
-* IIS, SMB, RDP and WinRM were exposed for controlled testing
-* Nmap identified the exposed services
-* Nessus completed a non-credentialed baseline scan
-* Evil-WinRM successfully connected before hardening
-* SMB enumeration worked with valid credentials
-* Wazuh detected successful remote logons
-* Wazuh detected failed logons
-* Wazuh detected multiple logon failures
-* Wazuh detected account lockout
-* The weak account was removed
-* Evil-WinRM failed after hardening
-* Nmap showed WinRM as filtered after hardening
-
----
-
-## What Did Not Work
-
-| Issue                                                  | Cause                                     | Resolution                               |
-| ------------------------------------------------------ | ----------------------------------------- | ---------------------------------------- |
-| DMZ target could not reach gateway                     | Interface mapping or IP issue in OPNsense | Corrected DMZ interface and IP           |
-| Kali could not reach ATTACK gateway                    | ATTACK interface had no IPv4 address      | Configured `10.60.60.1/24`               |
-| Wazuh showed old agent name                            | Cloned VM inherited old Wazuh identity    | Removed old agent and registered new one |
-| Wazuh service would not start                          | Service startup type was Disabled         | Changed startup type to Automatic        |
-| WinRM port was filtered                                | Windows network profile was Public        | Changed profile to Private               |
-| Evil-WinRM failed with valid password                  | LocalAccountTokenFilterPolicy missing     | Added required registry value            |
-| Hydra result was misleading                            | Wrong module/path tested HTTP response    | Not used as final evidence               |
-| Sysmon process events were not always obvious in Wazuh | Dashboard/query visibility limitation     | Verified Sysmon locally                  |
+| Area               | Improvement                                                         |
+| ------------------ | ------------------------------------------------------------------- |
+| Account security   | Removed weak local administrator account                            |
+| Remote access      | Restricted WinRM exposure from the ATTACK zone                      |
+| Monitoring         | Confirmed Wazuh visibility for successful and failed authentication |
+| Endpoint telemetry | Verified Sysmon was active on the target                            |
+| Validation         | Re-tested the same access path after hardening                      |
 
 Observation:
 
-These issues were useful because they made the lab more realistic. Troubleshooting became an important part of the final project instead of being separate from the security workflow.
+The lab connected attack simulation with detection and improvement, which is the main purpose of a Purple Team workflow.
+
+---
+
+## Detection Opportunities
+
+If similar activity occurred in a real enterprise environment, the following data sources would be useful for investigation:
+
+| Data Source            | Possible Evidence                                 |
+| ---------------------- | ------------------------------------------------- |
+| Wazuh alerts           | Successful logons, failed logons, account lockout |
+| Windows Security logs  | Logon type, source IP, NTLM authentication        |
+| Sysmon logs            | Process creation and endpoint telemetry           |
+| OPNsense firewall logs | Cross-zone traffic and blocked connections        |
+| Nessus scan results    | Baseline vulnerability and exposure information   |
+| Nmap results           | Service exposure from the attacker network        |
+
+Observation:
+
+Wazuh provided useful endpoint visibility during the lab. Stronger correlation between exact timestamps, firewall logs and endpoint events would improve analysis in a larger environment.
 
 ---
 
 ## Lessons Learned
 
-This lab reinforced several important cybersecurity lessons:
+This lab reinforced several important lessons:
 
-* Network segmentation must be validated at both IP and Layer 2 levels.
-* A correct IP configuration on a VM does not help if the firewall interface is missing its address.
-* Interface mapping in virtual firewalls must be documented carefully.
-* Cloned systems can inherit old agent identities and cause misleading monitoring data.
-* Monitoring agents should be installed before attack simulation to avoid missing important logs.
-* A port can be listening locally but still filtered from the attacker network.
+* Network segmentation must be validated before scanning or attack simulation.
+* OPNsense interface mapping must be checked carefully when adding new Hyper-V adapters.
+* A VM can have the correct IP address but still fail if the firewall interface is missing its gateway IP.
+* Cloned systems can inherit old monitoring identities.
+* Wazuh Agent and Sysmon should be installed before attack simulation begins.
+* A port can be listening locally but still appear filtered from another zone.
 * Windows network profiles can affect firewall exposure.
-* WinRM access with local administrator accounts can require additional configuration.
-* Weak credentials can quickly lead to remote administrative access.
-* SMB enumeration after authentication can expose useful information.
-* Wazuh can provide strong visibility into authentication activity.
-* Brute-force style behaviour can trigger multiple failed logon and account lockout alerts.
-* Not every tool output is useful evidence; misleading results should be excluded.
-* Hardening should be validated with the same attack path that worked before.
-* A strong Purple Team project should connect attack, detection and improvement.
+* WinRM with local administrator accounts may require LocalAccountTokenFilterPolicy.
+* Weak credentials can quickly become a remote access path.
+* SMB enumeration with valid credentials can reveal useful information.
+* Not every tool output is valid evidence.
+* Hardening should be validated using the same method that worked before.
+* The strongest result is not only detecting the attack, but proving that the attack path was reduced afterwards.
 
 ---
 
-## Skills Demonstrated
+## Final Technical Outcome
 
-* Hyper-V virtual lab management
-* OPNsense firewall and routing configuration
-* Network segmentation troubleshooting
-* Kali Linux network configuration with `nmcli`
-* Windows Server static IP configuration
-* IIS installation and validation
-* WinRM configuration and troubleshooting
-* RDP enablement
-* SMB enumeration
-* Wazuh agent registration and troubleshooting
-* Sysmon installation and verification
-* Nmap service discovery
-* Nessus vulnerability scanning
-* Evil-WinRM remote access validation
-* Authentication failure testing
-* Wazuh alert review
-* Account lockout detection
-* Security hardening
-* Post-hardening validation
-* Purple Team documentation
-
----
-
-## Final Outcome
-
-The final result was a complete Purple Team lab showing the full cycle:
+The completed lab followed this technical chain:
 
 ```text
-Design -> Build -> Troubleshoot -> Baseline -> Attack -> Detect -> Harden -> Validate
+Build -> Troubleshoot -> Baseline -> Attack -> Detect -> Harden -> Validate
 ```
 
-The most important result was that the same attack path that worked before hardening no longer worked afterwards.
-
-Before hardening:
+Final result:
 
 ```text
-Evil-WinRM access worked with purpleadmin
-WinRM port 5985 was reachable
-SMB enumeration worked with valid credentials
-Wazuh detected successful and failed authentication activity
+The target was reachable and monitored.
+The exposed services were identified.
+WinRM access worked with weak credentials.
+SMB enumeration worked with valid credentials.
+Wazuh detected successful and failed authentication activity.
+The weak account was removed.
+WinRM was no longer openly reachable from the ATTACK zone.
+The previous attack path no longer worked.
 ```
 
-After hardening:
-
-```text
-purpleadmin was removed
-Evil-WinRM access failed
-WinRM port 5985 was filtered from Kali
-The previous attack path was no longer available
-```
-
-This completed the lab as a practical Purple Team workflow combining offensive testing, defensive detection and security improvement.
-
----
-
-## Author
-
-Muhammad Mehdi
-IT Security Developer Student
+This completed the Purple Team workflow by connecting offensive testing, defensive detection and post-hardening validation.
