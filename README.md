@@ -280,3 +280,46 @@ This lab demonstrates practical skills in:
 * SMB enumeration
 * WinRM hardening
 * Purple Team methodology
+
+---
+
+# Key Skills Demonstrated
+
+* Enterprise network segmentation
+* Firewall configuration with OPNsense
+* DMZ network design
+* Network reconnaissance
+* Port scanning
+* Service and version detection
+* Vulnerability scanning
+* Vulnerability assessment
+* WinRM attack simulation
+* SMB enumeration
+* Remote authentication testing
+* Wazuh SIEM monitoring
+* Sysmon endpoint visibility
+* Authentication monitoring
+* Brute-force detection
+* Account lockout detection
+* Security event analysis
+* Security hardening
+* Hardening validation
+* Purple Team methodology
+* SOC and Blue Team workflow
+
+---
+
+# Documentation
+
+Full lab documentation is available here:
+
+**[Lab Documentation](LAB-DOCUMENTATION.md)**
+
+---
+
+# Author
+
+Muhammad Mehdi
+
+IT Security Developer Student
+
