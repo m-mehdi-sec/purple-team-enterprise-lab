@@ -4,15 +4,15 @@
 
 This project documents a controlled Purple Team lab built in Hyper-V where an attacker machine in a dedicated ATTACK network targeted a Windows Server placed in a DMZ.
 
-The lab was designed to connect offensive testing with defensive monitoring by using OPNsense, Kali Linux, Windows Server, Wazuh, Sysmon, Nmap and Nessus.
+The lab was designed to connect offensive testing with defensive monitoring by using OPNsense, Kali Linux, Windows Server, Wazuh, Sysmon, Nmap, Nessus, Evil-WinRM and SMB enumeration.
 
-The workflow followed a full Purple Team process:
+The lab followed a practical workflow from network design to validation:
 
 ```text
 Network Design -> Baseline Assessment -> Attack Simulation -> Detection Review -> Hardening -> Validation
 ```
 
-The goal was not only to perform attacks, but also to verify whether the activity was visible in Wazuh and whether the environment could be improved afterwards.
+The purpose was not only to perform attack simulation, but also to verify whether the activity was visible in Wazuh and whether the environment could be improved afterwards.
 
 All testing was performed inside an isolated and controlled local lab environment.
 
@@ -20,12 +20,12 @@ All testing was performed inside an isolated and controlled local lab environmen
 
 ## Lab Objective
 
-The objective of this lab was to understand how an exposed Windows Server in a DMZ can be assessed, attacked, monitored and hardened.
+The objective of this lab was to understand how a Windows Server placed in a DMZ can be assessed, attacked, monitored and hardened.
 
 The lab focused on:
 
 ```text
-Segmentation -> Exposed Services -> Baseline Scanning -> Remote Access Testing -> Detection Review -> Hardening Validation
+Segmentation -> Exposed Services -> Baseline Scanning -> Remote Access Testing -> SIEM Detection -> Hardening Validation
 ```
 
 The project demonstrates how a Purple Team workflow can connect:
@@ -41,6 +41,28 @@ The project demonstrates how a Purple Team workflow can connect:
 
 ---
 
+## Scope
+
+Only systems inside the controlled local Hyper-V lab were tested.
+
+Primary target:
+
+```text
+WIN-TARGET-DMZ - 10.70.70.40
+```
+
+The following restrictions were followed throughout the lab:
+
+* No testing of external or unauthorized systems
+* No destructive actions
+* No persistence or backdoors
+* No malware execution
+* No data exfiltration
+* No changes outside the isolated lab
+* Only controlled attack simulation was performed
+
+---
+
 ## Lab Environment
 
 | System / Tool             | Purpose                            |
@@ -51,7 +73,7 @@ The project demonstrates how a Purple Team workflow can connect:
 | Windows Server Target DMZ | Target server in the DMZ           |
 | Wazuh Server              | SIEM and security monitoring       |
 | Wazuh Agent               | Endpoint log forwarding            |
-| Sysmon                    | Endpoint telemetry                 |
+| Sysmon                    | Windows endpoint telemetry         |
 | Nessus Essentials         | Vulnerability scanning             |
 | Nmap                      | Port and service discovery         |
 | Evil-WinRM                | WinRM remote access testing        |
@@ -91,26 +113,25 @@ The Windows Server target was intentionally configured with several exposed serv
 | `3389/tcp` | RDP     | Remote desktop exposure      |
 | `5985/tcp` | WinRM   | Remote PowerShell access     |
 
-A weak local administrator account was created during the attack phase to simulate poor credential management and remote access risk.
+A weak local administrator account was used during the attack simulation phase to demonstrate the risk of poor credential management and exposed remote administration.
 
 ---
 
-## Summary of Results
+## Implementation Summary
 
-| Phase               | Result                                                                   |
-| ------------------- | ------------------------------------------------------------------------ |
-| Network Design      | ATTACK and DMZ zones were created and routed through OPNsense            |
-| Baseline Assessment | Nmap and Nessus identified the exposed attack surface                    |
-| Attack Simulation   | WinRM access and SMB enumeration were performed from Kali                |
-| Detection Review    | Wazuh detected successful logons, failed logons and account lockout      |
-| Hardening           | The weak local admin account was removed and WinRM access was restricted |
-| Validation          | Evil-WinRM failed and WinRM port `5985/tcp` was filtered after hardening |
+The lab was built around a routed ATTACK-to-DMZ path through OPNsense.
+
+Kali Linux was placed in the ATTACK zone and used for scanning, remote access testing and SMB enumeration. The Windows Server target was placed in the DMZ and monitored with Wazuh Agent and Sysmon.
+
+The attack phase validated that the weak account could be used for remote access through WinRM and SMB. The detection phase confirmed that Wazuh could detect successful remote logons, failed logons, repeated authentication failures and account lockout activity.
+
+The hardening phase removed the weak account and restricted WinRM access from the ATTACK zone. The final validation confirmed that the previous attack path no longer worked.
 
 ---
 
 ## Screenshots
 
-### 1. OPNsense Interface Overview
+### OPNsense Interface Overview
 
 ![OPNsense Interface Overview](images/01-opnsense-interface-overview.png)
 
@@ -118,7 +139,7 @@ OPNsense interface overview showing the segmented lab network. The DMZ interface
 
 ---
 
-### 2. Kali Attack IP Configuration
+### Kali Attack IP Configuration
 
 ![Kali Attack IP Configuration](images/02-kali-attack-ip-config.png)
 
@@ -126,7 +147,7 @@ Kali Linux was placed in the ATTACK zone with IP address `10.60.60.50/24` and de
 
 ---
 
-### 3. Windows Server Target DMZ IP Configuration
+### Windows Server Target DMZ IP Configuration
 
 ![Windows Server Target DMZ IP Configuration](images/03-win-target-dmz-ip-config.png)
 
@@ -134,7 +155,7 @@ Windows Server Target DMZ was configured with IP address `10.70.70.40/24`, gatew
 
 ---
 
-### 4. Wazuh Agent Active
+### Wazuh Agent Active
 
 ![Wazuh Agent Active](images/04-wazuh-agent-active.png)
 
@@ -142,7 +163,7 @@ Wazuh dashboard showing the `WIN-TARGET-DMZ` agent as active. This confirmed tha
 
 ---
 
-### 5. Nmap Baseline Open Ports
+### Nmap Baseline Open Ports
 
 ![Nmap Baseline Open Ports](images/05-nmap-baseline-open-ports.png)
 
@@ -150,7 +171,7 @@ Nmap service scan from Kali against `10.70.70.40`, showing exposed services incl
 
 ---
 
-### 6. Nessus Baseline Summary
+### Nessus Baseline Summary
 
 ![Nessus Baseline Summary](images/06-nessus-baseline-summary.png)
 
@@ -158,7 +179,7 @@ Nessus non-credentialed baseline scan against `10.70.70.40`. The scan showed no 
 
 ---
 
-### 7. Evil-WinRM Successful Login
+### Evil-WinRM Successful Login
 
 ![Evil-WinRM Successful Login](images/07-evil-winrm-successful-login.png)
 
@@ -166,7 +187,7 @@ Evil-WinRM access from Kali to the DMZ target using the intentionally weak local
 
 ---
 
-### 8. Wazuh Successful Remote Logon
+### Wazuh Successful Remote Logon
 
 ![Wazuh Successful Remote Logon](images/08-wazuh-successful-remote-logon.png)
 
@@ -174,7 +195,7 @@ Wazuh detected the successful remote logon from the attack machine. The event wa
 
 ---
 
-### 9. Wazuh Failed Logon
+### Wazuh Failed Logon
 
 ![Wazuh Failed Logon](images/09-wazuh-failed-logon.png)
 
@@ -182,7 +203,7 @@ Wazuh event details showing a failed logon attempt for `purpleadmin`. This confi
 
 ---
 
-### 10. SMB Authenticated Share Enumeration
+### SMB Authenticated Share Enumeration
 
 ![SMB Authenticated Share Enumeration](images/10-smb-authenticated-share-enumeration.png)
 
@@ -190,7 +211,7 @@ SMB enumeration from Kali using valid credentials. The target exposed administra
 
 ---
 
-### 11. SMB User Profile Enumeration
+### SMB User Profile Enumeration
 
 ![SMB User Profile Enumeration](images/11-smb-user-profile-enumeration.png)
 
@@ -198,7 +219,7 @@ Authenticated SMB access to the `Users` share. The attacker was able to enumerat
 
 ---
 
-### 12. Wazuh Brute Force Detection
+### Wazuh Brute Force Detection
 
 ![Wazuh Brute Force Detection](images/12-wazuh-bruteforce-detection.png)
 
@@ -206,7 +227,7 @@ Wazuh detected multiple failed logon attempts and account lockout activity. This
 
 ---
 
-### 13. Purpleadmin Account Before Removal
+### Purpleadmin Account Before Removal
 
 ![Purpleadmin Account Before Removal](images/13-purpleadmin-account-before-removal.png)
 
@@ -214,7 +235,7 @@ PowerShell verification showing the `purpleadmin` account before it was removed 
 
 ---
 
-### 14. WinRM Access Denied After Hardening
+### WinRM Access Denied After Hardening
 
 ![WinRM Access Denied](images/14-winrm-access-denied.png)
 
@@ -222,7 +243,7 @@ After hardening, Evil-WinRM access using the previous `purpleadmin` credentials 
 
 ---
 
-### 15. WinRM Port Filtered After Hardening
+### WinRM Port Filtered After Hardening
 
 ![WinRM Port Filtered](images/15-winrm-port-filtered.png)
 
@@ -234,7 +255,7 @@ Nmap validation from Kali showing port `5985/tcp` as filtered after hardening. T
 
 | Finding                | Result                                                                | Significance                             |
 | ---------------------- | --------------------------------------------------------------------- | ---------------------------------------- |
-| Segmented network path | Kali reached the DMZ target through OPNsense routing                  | Supported realistic routed testing       |
+| Segmented network path | Kali reached the DMZ target through OPNsense routing                  | Supported routed ATTACK-to-DMZ testing   |
 | Exposed services       | IIS, RPC, SMB, RDP and WinRM were reachable before hardening          | Defined the attack surface               |
 | WinRM access           | Evil-WinRM worked with weak credentials before hardening              | Confirmed remote access risk             |
 | SMB enumeration        | Authenticated SMB enumeration exposed shares and user profile folders | Confirmed post-authentication visibility |
@@ -270,7 +291,7 @@ Nmap validation from Kali showing port `5985/tcp` as filtered after hardening. T
 
 ## Documentation
 
-Full technical documentation is available here:
+Full lab documentation is available here:
 
 [Lab Documentation](docs/lab-documentation.md)
 
