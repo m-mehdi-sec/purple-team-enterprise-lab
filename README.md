@@ -101,6 +101,40 @@ Key IP addresses:
 
 ---
 
+## Network Architecture
+
+The lab was built with three separated network areas:
+
+```text
+Management LAN
+192.168.10.0/24
+Wazuh Server, Nessus and management access
+
+ATTACK Zone
+10.60.60.0/24
+Kali Linux attack machine
+
+DMZ Zone
+10.70.70.0/24
+Windows Server Target DMZ
+```
+
+Traffic between the ATTACK zone and the DMZ was routed through OPNsense. This made it possible to test both offensive access and defensive monitoring across network segments.
+
+```text
+Kali Linux
+10.60.60.50
+ATTACK Zone
+        |
+        | routed through OPNsense
+        |
+Windows Server Target DMZ
+10.70.70.40
+DMZ Zone
+```
+
+---
+
 ## Attack Surface
 
 The Windows Server target was intentionally configured with several exposed services for lab purposes.
@@ -119,13 +153,27 @@ A weak local administrator account was used during the attack simulation phase t
 
 ## Implementation Summary
 
-The lab was built around a routed ATTACK-to-DMZ path through OPNsense.
+The lab was built around a routed ATTACK-to-DMZ path through OPNsense. Kali Linux was placed in the ATTACK zone and used for scanning, remote access testing and SMB enumeration.
 
-Kali Linux was placed in the ATTACK zone and used for scanning, remote access testing and SMB enumeration. The Windows Server target was placed in the DMZ and monitored with Wazuh Agent and Sysmon.
+The Windows Server target was placed in the DMZ and monitored with Wazuh Agent and Sysmon. The attack phase validated that the weak account could be used for remote access through WinRM and SMB.
 
-The attack phase validated that the weak account could be used for remote access through WinRM and SMB. The detection phase confirmed that Wazuh could detect successful remote logons, failed logons, repeated authentication failures and account lockout activity.
+The detection phase confirmed that Wazuh could detect successful remote logons, failed logons, repeated authentication failures and account lockout activity.
 
 The hardening phase removed the weak account and restricted WinRM access from the ATTACK zone. The final validation confirmed that the previous attack path no longer worked.
+
+---
+
+## Attack and Validation Timeline
+
+| Phase                    | Source                            | Target           | Tool / Action                         | Result                                                                           |
+| ------------------------ | --------------------------------- | ---------------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| Baseline scanning        | Kali Linux                        | `10.70.70.40`    | Nmap service scan                     | IIS, RPC, SMB, RDP and WinRM were reachable                                      |
+| Vulnerability assessment | Windows 11 / Nessus               | `10.70.70.40`    | Nessus non-credentialed scan          | No Critical or High findings, but several Medium, Low and informational findings |
+| Remote access test       | Kali Linux                        | `10.70.70.40`    | Evil-WinRM                            | Remote access worked with weak local administrator credentials                   |
+| SMB enumeration          | Kali Linux                        | `10.70.70.40`    | smbclient                             | Administrative and user shares were visible with valid credentials               |
+| Detection review         | Wazuh Dashboard                   | `WIN-TARGET-DMZ` | Wazuh alerts                          | Successful logons, failed logons and account lockout activity were detected      |
+| Hardening                | Windows Server / Firewall control | `WIN-TARGET-DMZ` | Account removal and WinRM restriction | The weak account was removed and WinRM exposure was reduced                      |
+| Validation               | Kali Linux                        | `10.70.70.40`    | Evil-WinRM and Nmap                   | Evil-WinRM failed and port `5985/tcp` appeared filtered                          |
 
 ---
 
@@ -175,7 +223,9 @@ Nmap service scan from Kali against `10.70.70.40`, showing exposed services incl
 
 ![Nessus Baseline Summary](images/06-nessus-baseline-summary.png)
 
-Nessus non-credentialed baseline scan against `10.70.70.40`. The scan showed no Critical or High findings, but identified Medium, Low and informational findings related to exposed services and TLS/SSL configuration.
+Nessus non-credentialed baseline scan against `10.70.70.40`.
+
+The scan showed no Critical or High findings, but identified Medium, Low and informational findings related to exposed services and TLS/SSL configuration.
 
 ---
 
@@ -215,7 +265,9 @@ SMB enumeration from Kali using valid credentials. The target exposed administra
 
 ![SMB User Profile Enumeration](images/11-smb-user-profile-enumeration.png)
 
-Authenticated SMB access to the `Users` share. The attacker was able to enumerate the `purpleadmin` user profile folders.
+Authenticated SMB access to the `Users` share.
+
+The attacker was able to enumerate the `purpleadmin` user profile folders.
 
 ---
 
@@ -263,11 +315,11 @@ This lab was designed to demonstrate a complete Purple Team workflow within a co
 
 Current limitations include:
 
-- Nessus was performed as a non-credentialed vulnerability scan.
-- Detection validation focused primarily on WinRM authentication, SMB access and Windows Security Events.
-- Sysmon telemetry was successfully collected, although not every event type was consistently visible within Wazuh during testing.
-- The lab did not simulate malware execution, persistence techniques or data exfiltration.
-- The environment was intentionally designed for learning purposes rather than production-scale performance testing.
+* Nessus was performed as a non-credentialed vulnerability scan.
+* Detection validation focused primarily on WinRM authentication, SMB access and Windows Security Events.
+* Sysmon telemetry was successfully collected, although not every event type was consistently visible within Wazuh during testing.
+* The lab did not simulate malware execution, persistence techniques or data exfiltration.
+* The environment was intentionally designed for learning purposes rather than production-scale performance testing.
 
 ---
 
@@ -299,15 +351,15 @@ Current limitations include:
 
 Possible future enhancements include:
 
-- Deploy Suricata IDS/IPS monitoring between internal network segments.
-- Create custom Wazuh detection rules for WinRM and PowerShell activity.
-- Perform credentialed Nessus scans for deeper vulnerability assessment.
-- Correlate OPNsense firewall logs with Wazuh security events.
-- Expand the attack simulation with additional MITRE ATT&CK techniques.
-- Build a complete incident timeline from attack initiation through remediation.
+* Deploy Suricata IDS/IPS monitoring between internal network segments.
+* Create custom Wazuh detection rules for WinRM and PowerShell activity.
+* Perform credentialed Nessus scans for deeper vulnerability assessment.
+* Correlate OPNsense firewall logs with Wazuh security events.
+* Expand the attack simulation with additional MITRE ATT&CK techniques.
+* Build a complete incident timeline from attack initiation through remediation.
 
 ---
-  
+
 ## Documentation
 
 Full lab documentation is available here:
