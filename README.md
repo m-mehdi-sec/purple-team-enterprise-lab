@@ -227,17 +227,9 @@ Wazuh detected multiple failed logon attempts and account lockout activity. This
 
 ---
 
-### Purpleadmin Account Before Removal
-
-![Purpleadmin Account Before Removal](images/13-purpleadmin-account-before-removal.png)
-
-PowerShell verification showing the `purpleadmin` account before it was removed during the hardening phase. The account was a local administrator and was used during the attack simulation.
-
----
-
 ### WinRM Access Denied After Hardening
 
-![WinRM Access Denied](images/14-winrm-access-denied.png)
+![WinRM Access Denied](images/13-winrm-access-denied.png)
 
 After hardening, Evil-WinRM access using the previous `purpleadmin` credentials failed with an authorization error.
 
@@ -245,7 +237,7 @@ After hardening, Evil-WinRM access using the previous `purpleadmin` credentials 
 
 ### WinRM Port Filtered After Hardening
 
-![WinRM Port Filtered](images/15-winrm-port-filtered.png)
+![WinRM Port Filtered](images/14-winrm-port-filtered.png)
 
 Nmap validation from Kali showing port `5985/tcp` as filtered after hardening. This confirmed that WinRM was no longer openly reachable from the ATTACK zone.
 
