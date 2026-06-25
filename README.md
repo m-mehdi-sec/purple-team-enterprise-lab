@@ -257,6 +257,20 @@ Nmap validation from Kali showing port `5985/tcp` as filtered after hardening. T
 
 ---
 
+## Limitations
+
+This lab was designed to demonstrate a complete Purple Team workflow within a controlled Hyper-V environment.
+
+Current limitations include:
+
+- Nessus was performed as a non-credentialed vulnerability scan.
+- Detection validation focused primarily on WinRM authentication, SMB access and Windows Security Events.
+- Sysmon telemetry was successfully collected, although not every event type was consistently visible within Wazuh during testing.
+- The lab did not simulate malware execution, persistence techniques or data exfiltration.
+- The environment was intentionally designed for learning purposes rather than production-scale performance testing.
+
+---
+
 ## Key Skills Demonstrated
 
 * Enterprise network segmentation
