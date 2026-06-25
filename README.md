@@ -295,6 +295,19 @@ Current limitations include:
 
 ---
 
+## Future Improvements
+
+Possible future enhancements include:
+
+- Deploy Suricata IDS/IPS monitoring between internal network segments.
+- Create custom Wazuh detection rules for WinRM and PowerShell activity.
+- Perform credentialed Nessus scans for deeper vulnerability assessment.
+- Correlate OPNsense firewall logs with Wazuh security events.
+- Expand the attack simulation with additional MITRE ATT&CK techniques.
+- Build a complete incident timeline from attack initiation through remediation.
+
+---
+  
 ## Documentation
 
 Full lab documentation is available here:
